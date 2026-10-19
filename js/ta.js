@@ -5,8 +5,8 @@
    as a ghost boat. */
 const TA = { laps: 3, key: 'honorGP.ta', ghostDt: 0.1, failWait: 1.8 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
-// A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6
-const TA_RANKS = [['記念クラス', 107.5], ['A1', 109.0], ['A2', 111.0], ['B1', 115.0], ['B2', 121.0], ['ルーキー', Infinity]];
+// A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
+const TA_RANKS = [['記念クラス', 105.0], ['A1', 106.5], ['A2', 110.0], ['B1', 114.0], ['B2', 120.0], ['ルーキー', Infinity]];
 const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt: 0, done: false };
 let taBest = null;
 try { taBest = JSON.parse(localStorage.getItem(TA.key) || 'null'); } catch (e) {}
