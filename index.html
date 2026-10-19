@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Honor for GP 体験版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600&family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+/* Layout: full-bleed top-down water canvas; throttle lever pinned left, rudder wheel right, posture pad bottom-centre, readouts in the corners */
+:root{
+  --water:#10485a; --water-deep:#0a2c38; --bank:#2a3539; --foam:#e9f5f2; --buoy:#ff7a1a;
+  --hud:rgba(5,24,31,.68); --hud-line:rgba(233,245,242,.2); --fg:#eaf6f3; --muted:#9dbcbf;
+  --lever:#ffb42e; --good:#78e0a2; --warn:#ffd166; --bad:#ff6b5a;
+  --f-display:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP",system-ui,sans-serif;
+  --f-num:"Chakra Petch",ui-monospace,"SF Mono",monospace;
+  --sl:env(safe-area-inset-left,0px); --sr:env(safe-area-inset-right,0px);
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px);
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--water-deep);color:var(--fg);font-family:var(--f-body)}
+body{touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none;-webkit-touch-callout:none}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+.hud{position:fixed;pointer-events:none;z-index:2}
+.tl{top:calc(10px + var(--st));left:calc(16px + var(--sl));display:grid;gap:2px;text-shadow:0 1px 3px rgba(0,0,0,.5)}
+.spd{display:flex;align-items:baseline;gap:6px}
+.spd b{font-family:var(--f-num);font-size:34px;line-height:1;font-variant-numeric:tabular-nums;min-width:2.2ch;text-align:right}
+.spd span{font-size:12px;color:var(--muted);letter-spacing:.06em}
+.lap,.best{font-family:var(--f-num);font-size:13px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.best{color:var(--muted)}
+.tr{top:calc(10px + var(--st));right:calc(16px + var(--sr));display:grid;grid-template-columns:auto auto;gap:8px;justify-items:end;align-items:start}
+.pills{grid-column:1/-1;grid-row:2;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;max-width:300px}
+.pill.alt{border-color:var(--lever);color:var(--lever)}
+.padtag{font-size:11px;letter-spacing:.06em;color:var(--good)}
+.demotag{font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--lever)}
+.order{display:flex;gap:4px;margin-top:4px;pointer-events:auto}
+.dashbtn{position:fixed;z-index:3;right:calc(28px + var(--sr));bottom:calc(min(38vh,150px) + 46px + var(--sb));width:88px;height:88px;border-radius:50%;border:2px solid #fff;background:#2f6fe0;color:#fff;font:inherit;display:grid;place-items:center;align-content:center;gap:0;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.dashbtn b{font-family:var(--f-display);font-weight:400;font-size:24px;line-height:1}
+.dashbtn span{font-size:11px;letter-spacing:.1em}
+.dashbtn.done{background:#1f2629;opacity:.7}
+.claimbtn{right:calc(128px + var(--sr));background:#e9f5f2;color:#0a2c38;border-color:#0a2c38}
+.claimbtn.on{animation:claimBlink .5s steps(2) infinite}
+@keyframes claimBlink{50%{background:#ffd166}}
+.corder{display:flex;gap:3px;align-items:center;margin-top:3px;font-size:11px;color:var(--muted);pointer-events:none}
+.corder i{font-style:normal;width:20px;height:20px;border-radius:4px;display:grid;place-items:center;font-family:var(--f-num);font-size:12px;font-weight:600;border:1px solid rgba(233,245,242,.5)}
+.corder .sep{width:auto;border:0;color:var(--muted)}
+.dashbtn:focus-visible{outline:3px solid var(--lever);outline-offset:3px}
+.wakus{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:12px 0}
+.wakus button{aspect-ratio:1;border-radius:10px;border:1px solid rgba(233,245,242,.5);font-family:var(--f-num);font-size:24px;font-weight:600;cursor:pointer}
+.wakus button:focus-visible{outline:3px solid var(--lever);outline-offset:2px}
+.pill.on{background:#2f6fe0;border-color:#8fb4ff;color:#fff}
+.pill.sg{background:#b3261e;border-color:#ff6b5a;color:#fff}
+.chip.top{position:relative}
+.chip.top::after{content:'';position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:#ff3b30;border:1px solid #fff}
+table.race td.top{color:#ff5a4e;font-weight:700}
+table.race.res td.pl{font-family:var(--f-num);font-weight:700;font-size:16px;text-align:center}
+table.race.res tr.me td{background:rgba(255,180,46,.14)}
+table.race.res.noname td:nth-child(3),table.race.res.noname th:nth-child(3){display:none}
+.best.top{color:#ff5a4e}
+.chip{width:26px;height:26px;border-radius:5px;border:1px solid rgba(233,245,242,.55);font-family:var(--f-num);font-size:14px;font-weight:600;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .2s}
+.chip.on{outline:2px solid var(--lever);outline-offset:1px}
+.chip.f{text-decoration:line-through}
+.chip.foul{box-shadow:0 0 0 2px var(--warn)}
+.chip.dq{opacity:.35;text-decoration:line-through}
+.chip:focus-visible{outline:2px solid var(--lever);outline-offset:1px}
+.tablewrap{overflow-x:auto;margin:10px 0}
+table.race{border-collapse:collapse;width:100%;font-size:13px;white-space:nowrap}
+table.race th{font-size:11px;letter-spacing:.08em;color:var(--muted);font-weight:500;text-align:left;padding:4px 8px;border-bottom:1px solid var(--hud-line)}
+table.race td{padding:6px 8px;border-bottom:1px solid var(--hud-line)}
+table.race td.no{font-family:var(--f-num);font-weight:600;text-align:center;width:28px;border-radius:4px}
+#mini{width:160px;height:48px;border-radius:6px;background:var(--hud);border:1px solid var(--hud-line)}
+#gear{pointer-events:auto;width:40px;height:40px;border-radius:50%;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);display:grid;place-items:center;cursor:pointer}
+#gear:focus-visible,.btn:focus-visible,.pill:focus-visible{outline:2px solid var(--lever);outline-offset:2px}
+[hidden]{display:none!important}
+.padfocus{outline:3px solid var(--lever)!important;outline-offset:2px}
+#setsu .card{max-width:720px;padding:14px 14px}
+#setsuTabs{display:flex;gap:6px;margin:8px 0 4px;flex-wrap:wrap}
+#setsuTabs button.on{border-color:var(--lever);color:var(--lever)}
+.setsu-me{font-family:var(--f-num);font-size:13px;color:var(--fg);margin:2px 0 6px;word-break:break-all}
+.setsu-h{color:var(--fg)!important;font-weight:700;font-size:15px!important}
+.setsu-r{margin:8px 0;border:1px solid var(--hud-line);border-radius:10px;padding:6px 6px 2px}
+.setsu-r.mine{border-color:var(--lever)}
+.setsu-r.done{opacity:.82}
+.setsu-rh{display:flex;gap:8px;align-items:center;font-size:13px;padding:0 4px 4px}
+.setsu-rh .tag{font-size:11px;color:#1c1300;background:var(--lever);border-radius:4px;padding:1px 6px}
+.setsu-rh .wt{margin-left:auto;font-size:12px;color:var(--muted);display:flex;gap:4px;align-items:center}
+table.race.st{font-size:12px}
+table.race.st td,table.race.st th{padding:4px 5px}
+table.race.st td.nm{white-space:nowrap;max-width:9em;overflow:hidden;text-overflow:ellipsis}
+table.race.st td.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+table.race.st td.pl{font-weight:700;color:var(--lever)}
+table.race.st td.runs{white-space:normal;min-width:7em}
+table.race.st small{color:var(--muted);margin-left:2px}
+table.race.st tr.me td{background:rgba(255,180,46,.14)}
+.sw{font-style:normal;display:inline-grid;place-items:center;width:20px;height:20px;border-radius:4px;font-family:var(--f-num);font-weight:600;font-size:12px;border:1px solid rgba(233,245,242,.4)}
+.setsu-seibi label{font-size:13px;display:flex;gap:6px;align-items:center}
+.setsu-seibi select,#setsuNewBox select,#setsuNewBox input{font:inherit;font-size:14px;background:var(--water-deep);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px 6px}
+#setsuBody{overflow-x:auto}
+.pill{pointer-events:auto;height:34px;padding:0 14px;border-radius:20px;border:1px solid var(--hud-line);background:var(--hud);color:var(--fg);font:inherit;font-size:12px;font-weight:700;letter-spacing:.04em;cursor:pointer;white-space:nowrap}
+.windHud{position:fixed;z-index:2;pointer-events:none;top:calc(8px + var(--st));left:calc(50% + min(10vh,42px) + 10px);display:flex;align-items:center;gap:4px;padding:3px 8px 3px 4px;border-radius:14px;background:rgba(5,24,31,.72);color:#eaf6f3;font:700 12px/1.2 'Zen Kaku Gothic New',sans-serif;white-space:nowrap}
+.windHud svg{width:22px;height:22px;display:block}
+.clock{position:fixed;z-index:2;pointer-events:none;top:calc(6px + var(--st));left:50%;transform:translateX(-50%);display:grid;justify-items:center;gap:0}
+.clock svg{width:min(19vh,78px);height:min(19vh,78px);display:block}
+#clockTxt{font-family:var(--f-num);font-size:15px;font-variant-numeric:tabular-nums;text-shadow:0 1px 3px rgba(0,0,0,.7)}
+.clock.live #clockTxt{color:var(--good)}
+
+.lever{position:fixed;z-index:2;pointer-events:none;left:calc(16px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
+.lbl{font-size:11px;letter-spacing:.12em;color:var(--muted)}
+.track{position:relative;width:58px;height:min(46vh,220px);border-radius:14px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,rgba(255,180,46,.55),rgba(255,180,46,.18))}
+.knob{position:absolute;left:6px;right:6px;height:18px;bottom:0;border-radius:6px;background:var(--lever);box-shadow:0 2px 6px rgba(0,0,0,.4);transform:translateY(0)}
+.lever.on .track,.wheel.on svg{border-color:var(--lever);box-shadow:0 0 0 2px rgba(255,180,46,.35)}
+
+.wheel{position:fixed;z-index:2;pointer-events:none;right:calc(16px + var(--sr));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px}
+.wheel svg{width:min(38vh,150px);height:min(38vh,150px);border-radius:50%;border:1px solid transparent;display:block}
+
+.pad{position:fixed;z-index:2;pointer-events:none;left:50%;bottom:calc(12px + var(--sb));transform:translateX(-50%);display:grid;justify-items:center;gap:4px}
+.box{position:relative;width:84px;height:84px;border-radius:12px;background:var(--hud);border:2px solid var(--h,var(--hud-line));transition:border-color .15s}
+.box span{position:absolute;font-size:10px;color:var(--muted);letter-spacing:.06em}
+.box .t{top:3px;left:50%;transform:translateX(-50%)}
+.box .b{bottom:3px;left:50%;transform:translateX(-50%)}
+.box .l{left:5px;top:50%;transform:translateY(-50%)}
+.box .r{right:5px;top:50%;transform:translateY(-50%)}
+.cross{position:absolute;inset:0;background:linear-gradient(var(--hud-line),var(--hud-line)) center/1px 70% no-repeat,linear-gradient(var(--hud-line),var(--hud-line)) center/70% 1px no-repeat}
+.dot{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;background:var(--fg);box-shadow:0 0 8px rgba(233,245,242,.6)}
+.stab{position:relative;width:84px;height:8px;border-radius:4px;background:var(--hud);border:1px solid var(--hud-line);overflow:hidden}
+.stabfill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--good)}
+.stabline{position:absolute;top:-2px;bottom:-2px;left:66.7%;width:2px;background:var(--bad)}
+.stab.over{animation:blink .5s steps(2) infinite}
+@keyframes blink{50%{border-color:var(--bad);box-shadow:0 0 0 2px rgba(255,107,90,.5)}}
+@media (prefers-reduced-motion:reduce){.stab.over{animation:none;box-shadow:0 0 0 2px rgba(255,107,90,.5)}}
+.deg{font-family:var(--f-num);font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+
+.toast{position:fixed;z-index:3;left:50%;top:calc(max(96px,24%) + var(--st));transform:translateX(-50%);text-align:center;pointer-events:none;opacity:0}
+.toast.show{animation:pop 1.9s ease-out forwards}
+#tBig{font-family:var(--f-display);font-size:clamp(26px,6vh,44px);letter-spacing:.04em;text-shadow:0 2px 10px rgba(0,0,0,.55)}
+#tSmall{font-size:13px;margin-top:2px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.toast[data-kind="good"] #tBig{color:var(--good)}
+.toast[data-kind="warn"] #tBig{color:var(--warn)}
+.toast[data-kind="bad"] #tBig{color:var(--bad)}
+@keyframes pop{0%{opacity:0;transform:translateX(-50%) scale(.9)}10%{opacity:1;transform:translateX(-50%) scale(1)}78%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.toast.show{animation:none;opacity:1}}
+
+.note{position:fixed;z-index:4;top:calc(64px + var(--st));white-space:pre-line;cursor:pointer;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 340px));min-width:220px;background:var(--hud);border:1px solid var(--warn);border-radius:8px;padding:8px 12px;font-size:12px;line-height:1.55;pointer-events:auto}
+
+.mtab{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;margin:6px 0 8px}
+.mtab th,.mtab td{padding:7px 8px;border-bottom:1px solid rgba(233,245,242,.15);text-align:right}
+.mtab th:first-child,.mtab td:first-child{text-align:left}
+.mtab td.best{color:var(--good)}
+.ta-big{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:4px 0 2px}.ta-big b{font-family:var(--f-num);font-size:40px;font-variant-numeric:tabular-nums}
+.ta-rank{font-weight:700;font-size:20px;padding:2px 12px;border-radius:8px;background:#1d4a57;color:#bcf5e2}.ta-rank.top{background:#7a1d18;color:#ffd9d4}
+.calbox{position:relative;width:150px;height:150px;margin:6px auto 4px;border-radius:50%;border:2px solid rgba(233,245,242,.35);background:rgba(5,24,31,.5)}
+.calbox .calx,.calbox .caly{position:absolute;background:rgba(233,245,242,.25)}
+.calbox .calx{left:8px;right:8px;top:50%;height:1px}.calbox .caly{top:8px;bottom:8px;left:50%;width:1px}
+#calDot{position:absolute;left:50%;top:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:#ffb42e;box-shadow:0 0 8px rgba(255,180,46,.7)}
+.rpChip{position:fixed;z-index:7;left:50%;bottom:calc(10px + var(--sb));transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 8px 6px 14px;border-radius:14px;background:rgba(5,24,31,.88);border:1px solid var(--hud-line);color:var(--fg);font-size:13px;font-weight:700}
+.rpChip .btn{padding:8px 14px;font-size:13px}
+.overlay{position:fixed;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;padding:calc(12px + var(--st)) calc(16px + var(--sr)) calc(12px + var(--sb)) calc(16px + var(--sl));background:rgba(4,20,26,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.card{background:var(--hud);border:1px solid var(--hud-line);border-radius:14px;padding:18px 22px;max-width:680px;width:100%;max-height:100%;overflow:auto;touch-action:pan-y}
+.card h1{font-family:var(--f-display);font-weight:400;font-size:clamp(24px,5vh,34px);margin:0 0 2px;letter-spacing:.03em;text-wrap:balance}
+.card h1 .sub{display:block;font-family:var(--f-body);font-weight:700;font-size:clamp(13px,2.6vh,16px);letter-spacing:.3em;color:var(--muted);margin-top:4px}
+.card h1 small{display:block;font-family:var(--f-body);font-size:12px;letter-spacing:.14em;color:var(--lever);margin-bottom:2px}
+.card p{margin:6px 0;font-size:13px;line-height:1.6;color:var(--muted)}
+.ctl{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 18px;margin:12px 0}
+.ctl div{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;font-size:13px;line-height:1.5}
+.ctl b{font-size:11px;letter-spacing:.08em;color:var(--bg,#0a2c38);background:var(--lever);border-radius:4px;padding:2px 6px;white-space:nowrap;margin-top:1px}
+.ctl .key{background:var(--foam)}
+.monkey{border-left:3px solid var(--good);padding:6px 10px;margin:10px 0;font-size:13px;line-height:1.6;background:rgba(120,224,162,.08);border-radius:0 6px 6px 0}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px}
+.btn{font:inherit;font-weight:700;font-size:15px;border-radius:10px;border:0;padding:12px 22px;background:var(--lever);color:#1c1300;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--hud-line);font-weight:500;font-size:13px;padding:9px 14px}
+.set{display:grid;gap:12px;margin-top:10px}
+.set label{display:flex;align-items:center;gap:10px;font-size:14px}
+.set input[type=checkbox]{width:20px;height:20px;accent-color:var(--lever)}
+.set input[type=range]{flex:1;accent-color:var(--lever)}
+.set select{font:inherit;font-size:13px;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:4px 6px}
+.set output{font-family:var(--f-num);min-width:3.5ch;text-align:right}
+/* Independent d42 behavior laboratory */
+.lab-surface{font-family:var(--f-body);color:#eaf6f3;touch-action:pan-y;user-select:text;-webkit-user-select:text;box-sizing:border-box}
+.lab-surface *{box-sizing:border-box}.lab-surface[hidden]{display:none!important}
+#labSetup{position:fixed;inset:0;z-index:90;overflow:auto;background:#071d27;padding:28px max(20px,calc((100vw - 1180px)/2));overscroll-behavior:contain}
+.lab-kicker{font:12px var(--f-num);letter-spacing:.18em;color:#85d9c8}.lab-surface h2{font-size:27px;margin:6px 0 12px}.lab-surface p{font-size:13px;line-height:1.8;color:#aac3c8;margin:8px 0 16px}.lab-head{display:flex;justify-content:space-between;gap:16px;align-items:start}.lab-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lab-surface button,.lab-surface select,.lab-surface input{font:inherit;font-size:13px;border:1px solid #45616b;border-radius:7px;color:#edf5f5;background:#15343f;padding:9px;min-height:38px}.lab-surface button{cursor:pointer}.lab-surface button:hover{border-color:#87dec9}.lab-surface button.primary{background:#a5eed6;color:#082b2d;border-color:#a5eed6;font-weight:700}.lab-surface button:disabled{opacity:.4;cursor:default}.lab-surface button:focus-visible,.lab-surface input:focus-visible,.lab-surface select:focus-visible{outline:2px solid #a5eed6;outline-offset:2px}
+.lab-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.lab-grid label{display:grid;gap:5px;font-size:12px;color:#adc7cc}.lab-grid input,.lab-grid select{width:100%;min-width:0}.lab-block{border:1px solid #36515b;border-radius:12px;background:#0d2934;padding:16px;margin:16px 0}.lab-boat{border-left:4px solid var(--boat);padding:16px}.lab-boat summary{cursor:pointer;font-size:16px;list-style:none;display:flex;gap:12px;align-items:center;min-height:40px}.lab-boat summary::after{content:'条件・判断 ▾';margin-left:auto;font-size:12px;color:#9fc5c9}.lab-boat summary label{display:flex;align-items:center;gap:8px}.lab-boat input[type=checkbox]{min-height:20px;width:20px;accent-color:#a5eed6}.lab-boat .lab-grid{margin-top:16px}.lab-table-wrap{overflow-x:auto;margin-top:15px}.lab-table{border-collapse:collapse;min-width:850px;width:100%;font-size:12px}.lab-table th{text-align:left;color:#9bbfc6;font-weight:500;padding:7px}.lab-table td{border-top:1px solid #294954;padding:6px}.lab-table input{width:70px}.lab-table select{max-width:152px;width:100%}.lab-table td:first-child{white-space:nowrap}.lab-note{font-size:12px!important;color:#a9c2c7}.lab-error{color:#ffb9a7;font-size:14px;min-height:22px;margin:10px 0}.lab-bottom{position:sticky;bottom:-28px;background:#071d27f5;border-top:1px solid #36515b;padding:15px 0;display:flex;justify-content:space-between;gap:12px;align-items:center}.lab-count{font-size:13px;color:#c4dbdd}
+#labRun{position:fixed;right:0;top:0;bottom:0;width:360px;z-index:60;background:#071d27;overflow:auto;padding:18px;border-left:1px solid #45616b}#labRun h2{font-size:20px}#labRun .lab-actions button{flex:1;white-space:nowrap}#labRun .lab-grid{grid-template-columns:1fr 1fr;margin:12px 0}.lab-clock{font:36px var(--f-num);margin:16px 0 4px}.lab-live-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:12px 0}.lab-live-row div{padding:9px;background:#12343e;border-radius:7px}.lab-live-row small{font-size:10px;color:#9dbdc4;display:block}.lab-live-row b{font:20px var(--f-num)}#labDetail{font-size:12px;line-height:1.9;background:#102e39;border-radius:8px;padding:12px;min-height:115px}#labEvents{font:12px/1.65 var(--f-body);padding:0;list-style:none;max-height:230px;overflow:auto}#labEvents li{border-top:1px solid #284650;padding:8px 0}#labChart{display:block;width:100%;height:130px;margin:12px 0}.lab-legend{font-size:11px;color:#a9c8cb}.lab-legend span{color:#a5eed6}.lab-legend em{color:#ffcf75;font-style:normal}#labStatus{font-size:12px;color:#a5eed6;min-height:20px}#labRun .lab-note{margin-bottom:8px}
+body.lab-running>.hud,body.lab-running>.pad,body.lab-running>#lever,body.lab-running>#wheel,body.lab-running>#toast,body.lab-running>#clock,body.lab-running>#dashBtn,body.lab-running>#rotate{display:none!important}
+@media(max-width:760px){#labSetup{padding:18px 12px}.lab-head{flex-direction:column}.lab-bottom{bottom:-18px;align-items:stretch;flex-direction:column}#labRun{top:auto;left:0;bottom:0;width:100%;height:43vh;border-left:0;border-top:1px solid #45616b;padding:12px}#labRun h2{font-size:17px}.lab-clock{font-size:27px}.lab-boat{padding:10px}.lab-surface h2{font-size:22px}.lab-table{min-width:840px}}
+.lab-guide-label{display:flex;gap:8px;align-items:center;color:#abcbd0;font-size:12px;margin:8px 0}.lab-guide-label input{min-height:18px;accent-color:#a5eed6}.lab-surface{touch-action:pan-x pan-y}.lab-table-wrap{touch-action:pan-x pan-y}
+.lab-grid .lab-guide-label{display:flex;align-self:end;padding-bottom:8px}.lab-grid .lab-guide-label input{width:18px}
+
+/* Left-hand posture stick, adjacent to the throttle. */
+:root{--posture-size:min(27vw,30vh,128px)}
+.posture-stick{position:fixed;z-index:3;left:calc(88px + var(--sl));bottom:calc(16px + var(--sb));display:grid;justify-items:center;gap:6px;touch-action:none}
+.posture-zone{position:relative;width:var(--posture-size);height:var(--posture-size);border:1px solid #a5eed677;border-radius:50%;background:rgba(5,27,35,.76);touch-action:none;cursor:grab;outline:none}
+.posture-zone::before,.posture-zone::after{content:"";position:absolute;background:#a5eed633;pointer-events:none}
+.posture-zone::before{width:1px;top:14%;bottom:14%;left:50%}.posture-zone::after{height:1px;left:14%;right:14%;top:50%}
+.posture-zone span{position:absolute;color:#c4d9d4;font-size:10px;pointer-events:none}
+.posture-zone .up{top:5px;left:50%;transform:translateX(-50%)}.posture-zone .down{bottom:5px;left:50%;transform:translateX(-50%)}
+.posture-zone .left{left:6px;top:50%;transform:translateY(-50%)}.posture-zone .right{right:6px;top:50%;transform:translateY(-50%)}
+.posture-thumb{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px;border-radius:50%;border:2px solid #bcf5e2;background:#83caba99;box-shadow:0 2px 8px #0006;pointer-events:none}
+.posture-zone.active{border-color:#bcf5e2;box-shadow:0 0 0 2px #a5eed633;cursor:grabbing}.posture-zone:focus-visible{outline:2px solid var(--lever);outline-offset:3px}
+body.virtual-pad>.pad{left:calc(88px + var(--sl));bottom:calc(46px + var(--sb) + var(--posture-size));transform:none;max-width:var(--posture-size)}
+body.virtual-pad>.pad .box{display:none}body.virtual-pad>.pad .deg{white-space:normal;font-size:10px;text-align:center}
+body.virtual-pad>.wheel svg{width:min(30vw,38vh,150px);height:min(30vw,38vh,150px)}
+body.lab-running>.posture-stick{display:none!important}
+.mode-choices{border:1px solid var(--hud-line);border-radius:10px;padding:10px 14px;margin:12px 0}.mode-choices legend{font-weight:700;padding:0 6px}.mode-choices label{display:flex;gap:9px;align-items:flex-start;padding:9px 0;cursor:pointer}.mode-choices input{margin-top:4px;accent-color:var(--lever)}.mode-choices small{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+body.phone-wheel>#lever{left:auto;right:calc(16px + var(--sr))}
+body.phone-wheel>#wheel{display:none}
+body.phone-wheel>.posture-stick,body.phone-wheel>.pad{left:calc(16px + var(--sl))}
+#phoneSteerReadout{position:fixed;z-index:2;bottom:calc(18px + var(--sb));left:50%;transform:translateX(-50%);background:var(--hud);border:1px solid var(--hud-line);border-radius:8px;padding:6px 10px;font-size:12px;pointer-events:none}
+body.lab-running>#phoneSteerReadout{display:none!important}
+/* Recorded start inspection; independent of the live race camera. */
+#slitPhoto{z-index:110;padding:12px}
+#slitPhoto .card{width:min(1040px,100%);max-width:1040px;padding:18px}
+#slitPhoto h1{font-size:22px;margin:0 0 10px}
+#slitPhoto .slit-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+#slitPhoto select{max-width:100%;padding:8px;background:#132c39;color:#fff;border:1px solid #506775;border-radius:8px}
+#slitCanvas{display:block;width:100%;height:auto;border-radius:10px;background:#102a3b}
+#slitSeek{flex:1;min-width:100px;accent-color:#62debc;touch-action:auto}
+#slitPhoto p{font-size:12px;line-height:1.6;margin:8px 0}
+#slitTime{font-variant-numeric:tabular-nums;min-width:112px;text-align:center}
+/* 実況: a strip under the clock; the line slides in, holds, then fades */
+.jk{position:fixed;z-index:4;left:50%;top:calc(min(19vh,78px) + 34px + var(--st));transform:translateX(-50%);max-width:min(640px,calc(100% - 32px));padding:6px 14px;border-radius:8px;background:rgba(5,24,31,.82);border-left:4px solid var(--lever);color:var(--fg);font-weight:700;font-size:15px;line-height:1.4;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0}
+.jk.run{animation:jkRun 3.2s ease-out forwards}
+@keyframes jkRun{0%{opacity:0;transform:translateX(-30%)}8%{opacity:1;transform:translateX(-50%)}85%{opacity:1;transform:translateX(-50%)}100%{opacity:0;transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.jk.run{animation:none;opacity:1}}
+body.lab-running>#jk{display:none!important}
+#cutin{position:fixed;left:0;right:0;top:34%;z-index:60;pointer-events:none;display:flex;justify-content:center;opacity:0}
+#cutin.show{animation:cutin 1.1s ease-out forwards}
+#cutin b{display:block;width:120%;margin:0 -10%;text-align:center;font:900 54px/1.25 sans-serif;letter-spacing:.06em;padding:6px 0;transform:skewY(-4deg);color:#fff;text-shadow:0 3px 0 rgba(0,0,0,.45);background:linear-gradient(90deg,transparent,rgba(255,150,20,.92) 18%,rgba(255,90,20,.95) 50%,rgba(255,150,20,.92) 82%,transparent)}
+#cutin.early b{background:linear-gradient(90deg,transparent,rgba(40,120,255,.92) 18%,rgba(30,70,220,.95) 50%,rgba(40,120,255,.92) 82%,transparent)}
+@keyframes cutin{0%{opacity:0;transform:translateX(40%)}12%{opacity:1;transform:translateX(0)}75%{opacity:1}100%{opacity:0;transform:translateX(-8%)}}
+</style>
+</head>
+<body>
+<canvas id="cv" aria-label="競艇コースを真上から見た図"></canvas>
+
+<div class="hud tl">
+  <div class="spd"><b id="spd">0</b><span>km/h</span></div>
+  <div class="lap" id="lap">LAP 1  0:00.00</div>
+  <div class="best" id="best">ベスト —</div>
+  <div class="demotag" id="demoTag" hidden>6艇デモ</div>
+  <div class="padtag" id="padTag" hidden>コントローラ接続中</div>
+  <div class="order" id="order" hidden></div>
+  <div class="corder" id="corder" hidden></div>
+</div>
+
+<div class="hud tr">
+  <div class="pills">
+    <button id="again" class="pill">練習メニュー</button>
+    <button id="labLaunch" class="pill alt">挙動検証</button>
+    <button id="demoBtn" class="pill">6艇デモ</button>
+    <button id="entryBtn" class="pill" aria-pressed="false">進入：固定</button>
+    <button id="sgBtn" class="pill" aria-pressed="false">SG：オフ</button>
+    <button id="slitBtn" class="pill alt" disabled title="レース終了後に確認できます">スリット写真</button>
+    <button id="logBtn" class="pill alt">入力ログ</button>
+    <button id="cardBtn" class="pill alt" hidden>出走表</button>
+    <button id="skipBtn" class="pill alt" hidden>事故のためスキップ</button>
+  </div>
+  <canvas id="mini" aria-hidden="true"></canvas>
+  <button id="gear" aria-label="設定">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="2" fill="currentColor"/><circle cx="13" cy="10" r="2" fill="currentColor"/><circle cx="9" cy="15" r="2" fill="currentColor"/></svg>
+  </button>
+</div>
+
+<div id="toast" class="toast" aria-live="polite"><div id="tBig"></div><div id="tSmall"></div></div>
+<div class="windHud" id="windHud" hidden><svg viewBox="-12 -12 24 24" aria-hidden="true"><g id="windArrow"><path d="M-9 0H7M2 -5L8 0L2 5" fill="none" stroke="#eaf6f3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g></svg><span id="windTxt"></span></div>
+<div class="clock" id="clock" hidden>
+  <svg viewBox="-40 -40 80 80" aria-hidden="true">
+    <circle r="36" fill="rgba(5,24,31,.78)" stroke="#eaf6f3" stroke-opacity=".35" stroke-width="1.5"/>
+    <path d="M0 -33 A33 33 0 0 1 16.5 -28.58" fill="none" stroke="#78e0a2" stroke-width="5"/>
+    <g stroke="#eaf6f3" stroke-opacity=".7" stroke-width="2" stroke-linecap="round">
+      <path d="M0 -33V-27M16.5 -28.6L13.5 -23.4M28.6 -16.5L23.4 -13.5M33 0H27M28.6 16.5L23.4 13.5M16.5 28.6L13.5 23.4M0 33V27M-16.5 28.6L-13.5 23.4M-28.6 16.5L-23.4 13.5M-33 0H-27M-28.6 -16.5L-23.4 -13.5M-16.5 -28.6L-13.5 -23.4"/>
+    </g>
+    <line id="hand" x1="0" y1="4" x2="0" y2="-30" stroke="#ffb42e" stroke-width="3" stroke-linecap="round"/>
+    <circle r="3" fill="#ffb42e"/>
+  </svg>
+  <div id="clockTxt">12.0</div>
+</div>
+<div class="note" id="note" hidden></div>
+
+<div class="lever" id="lever">
+  <div class="track" id="track"><div class="fill" id="lfill"></div><div class="knob" id="lknob"></div></div>
+  <div class="lbl">スロットル</div>
+</div>
+
+<div class="posture-stick" id="postureStick" hidden>
+  <div class="posture-zone" id="postureZone" role="group" tabindex="0" aria-label="姿勢アナログパッド。左右で傾き、上で伏せる、下で起こす。指を離すと中央。矢印キーでも操作できます。">
+    <span class="up">伏せる</span><span class="down">起こす</span><span class="left">左</span><span class="right">右</span><i class="posture-thumb" id="postureThumb"></i>
+  </div><div class="lbl">姿勢パッド</div>
+</div>
+<div id="phoneSteerReadout" hidden>スマホ舵：中央</div>
+<div class="wheel" id="wheel">
+  <svg viewBox="-50 -50 100 100" aria-hidden="true">
+    <g id="wrot">
+      <circle r="44" fill="none" stroke="#eaf6f3" stroke-opacity=".85" stroke-width="7"/>
+      <circle r="44" fill="none" stroke="#0a2c38" stroke-opacity=".5" stroke-width="1"/>
+      <path d="M0 -40V-12M-38 12L-11 4M38 12L11 4" stroke="#eaf6f3" stroke-opacity=".7" stroke-width="5" stroke-linecap="round"/>
+      <circle r="12" fill="rgba(5,24,31,.8)" stroke="#eaf6f3" stroke-opacity=".7" stroke-width="3"/>
+      <rect x="-4" y="-50" width="8" height="12" rx="2" fill="#ffb42e"/>
+    </g>
+  </svg>
+  <div class="lbl">舵</div>
+</div>
+
+<div class="pad">
+  <div class="stab" id="stab" title="安定度"><div class="stabfill" id="stabFill"></div><i class="stabline"></i></div>
+  <div class="box" id="pbox">
+    <i class="cross"></i>
+    <span class="t">伏せる</span><span class="b">起こす</span><span class="l">左</span><span class="r">右</span>
+    <i class="dot" id="pdot"></i>
+  </div>
+  <div class="deg" id="pdeg">体重移動</div>
+</div>
+
+<div class="overlay" id="start">
+  <div class="card">
+    <h1><small>体験版</small>Honor for GP<span class="sub">波の向こうに</span></h1>
+    <p>スマホは横向きで。操作モードを選んでください。</p>
+    <fieldset class="mode-choices"><legend>最初に操作モードを選択</legend>
+      <label><input type="radio" name="startControlMode" value="tilt" checked><span><b>1．傾きあり</b><small>左：アクセル ／ 右：舵 ／ スマホの傾き：姿勢</small></span></label>
+      <label><input type="radio" name="startControlMode" value="pad"><span><b>2．傾きなし・姿勢パッドあり</b><small>左：アクセル＋姿勢パッド ／ 右：舵 ／ センサー停止</small></span></label>
+      <label><input type="radio" name="startControlMode" value="wheel"><span><b>3．姿勢パッド＋右手アクセル</b><small>左：姿勢パッドのみ ／ 右：アクセル ／ スマホ自体を回して舵</small></span></label>
+    </fieldset>
+    <p id="controlHelp" style="font-size:13px"></p>
+    <div class="row">
+      <button class="btn" id="go">スタート</button>
+      <button class="btn ghost" id="goDemo">6艇デモを見る</button>
+      <button class="btn ghost" id="labLaunchStart">挙動検証（2〜6艇）</button>
+      <span style="font-size:12px;color:var(--muted)">PC：W/S＝スロットル　A/D＝舵　矢印＝体重移動（↑伏せる／↓起こす）<br>コントローラ：左トリガー＝スロットル　右スティック＝舵　左スティック＝体重移動</span>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="calib" hidden>
+  <div class="card" style="max-width:380px;text-align:center">
+    <h1 id="calTitle" style="font-size:22px">持ち方を決めてOK</h1>
+    <p id="calMsg">遊ぶときの持ち方で構えて、少し傾けて反応を確かめてください。OKを押したときの姿勢が「傾き0」になります。</p>
+    <div class="calbox"><i class="calx"></i><i class="caly"></i><b id="calDot"></b></div>
+    <p id="calTxt" style="font-variant-numeric:tabular-nums">左右 0°　前後 0°</p>
+    <div class="row" style="justify-content:center"><button class="btn" id="calOk">OK</button><button class="btn ghost" id="calUsePad" hidden>センサーなしのモード2へ</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="rotate" hidden>
+  <div class="card" style="max-width:360px;text-align:center">
+    <h1 style="font-size:22px">横向きにしてください</h1>
+    <p>左右の親指でレバーと舵を操作する前提の画面です。</p>
+    <div class="row" style="justify-content:center"><button class="btn ghost" id="stayPortrait">縦のまま試す</button></div>
+  </div>
+</div>
+
+<button class="dashbtn" id="dashBtn" hidden><b>引く</b><span>ダッシュ</span></button>
+<button class="dashbtn claimbtn" id="claimBtn" hidden><b>主張</b><span id="claimTxt">コース</span></button>
+
+<div class="overlay" id="pmenu" hidden>
+  <div class="card" style="max-width:480px">
+    <h1 style="font-size:22px"><small>練習</small>モードを選ぶ</h1>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:6px">
+      <button class="btn" id="pm6">6艇スタート練習</button>
+      <p style="margin:0 0 6px">ピット離れから。舵は自動でアクセルだけ調整して待機位置へ。「引く」でダッシュ。スタートしたら自動で1マークを回り、スリット写真で終了（前付けなし）。</p>
+      <button class="btn" id="pmTA">タイムアタック（1艇・大時計スタートから3周・級判定）</button>
+      <p style="margin:0 0 6px">タイムで級（ルーキー〜B2・B1・A2・A1・記念クラス）を判定。自己ベストはゴーストになって一緒に走ります。</p>
+      <button class="btn ghost" id="pmTenji">展示航走（1艇・タイム計測）</button>
+      <p style="margin:0 0 6px">バックストレッチから2マークを回り、スリットから2周。展示・直線・まわり足・一周タイムを計測。</p>
+      <button class="btn ghost" id="pmClock">大時計スタート（1艇）</button>
+      <button class="btn ghost" id="pmRace">レース練習（6艇・ピット離れから3周・全部自分で操作）</button>
+      <button class="btn" id="pmSetsu" style="margin-top:6px">節間モード（6日間・48人）</button>
+      <button class="btn ghost" id="pmReplay" style="margin-top:6px">保存したリプレイログ</button>
+      <p style="margin:0 0 6px">前検でモーター抽選、予選4日の得点率で準優・優勝戦へ。自分のレースは自分で走るか、おまかせ。他のレースは結果だけ、または観戦。</p>
+      <button class="btn ghost" id="pmClose">やめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="rpChip" id="rpChip" hidden><span>リプレイログ</span><button class="btn" id="rpKeep">残す</button><button class="btn ghost" id="rpSkip">残さない</button></div>
+<div class="overlay" id="rpBox" hidden style="z-index:8">
+  <div class="card" style="max-width:720px;width:100%">
+    <h1 style="font-size:20px;margin:0 0 6px"><small>検証用</small>リプレイログ</h1>
+    <p id="rpInfo" style="margin:0 0 6px;font-size:12px"></p>
+    <textarea id="rpText" readonly spellcheck="false" style="width:100%;box-sizing:border-box;height:42vh;font:10px/1.35 ui-monospace,Menlo,Consolas,monospace;background:var(--water-deep);color:var(--fg);border:1px solid var(--hud-line);border-radius:8px;padding:6px;white-space:pre;overflow:auto"></textarea>
+    <div class="row" style="margin-top:8px;flex-wrap:wrap;gap:8px"><button class="btn" id="rpCopy">コピー</button><button class="btn ghost" id="rpOlder">前のログ</button><button class="btn ghost" id="rpNewer">次のログ</button><button class="btn ghost" id="rpDel">このログを消す</button><button class="btn ghost" id="rpClose">閉じる</button></div>
+  </div>
+</div>
+<div class="overlay" id="askBox" hidden style="z-index:9">
+  <div class="card" style="max-width:380px">
+    <p id="askMsg" style="color:var(--fg);font-size:15px"></p>
+    <div class="row"><button class="btn" id="askYes">はい</button><button class="btn ghost" id="askNo">いいえ</button></div>
+  </div>
+</div>
+
+<div id="cutin"><b id="cutinTxt"></b></div>
+<div id="jk" class="jk" hidden aria-live="polite"></div>
+<div class="overlay" id="setsuNewBox" hidden>
+  <div class="card" style="max-width:440px">
+    <h1 style="font-size:22px"><small>節間モード</small>6日間の開催に参加</h1>
+    <p>前検日（モーター抽選・整備）→ 予選4日（1日1〜2走・計6走）→ 5日目 準優勝戦 → 最終日 優勝戦。48人の中で得点率を競います。</p>
+    <div class="row" style="flex-direction:column;align-items:stretch;gap:8px">
+      <label>選手名 <input id="setsuName" maxlength="12" value="あなた"></label>
+      <label>大会 <select id="setsuGrade"><option value="ippan" selected>一般戦（A1〜B2の48人）</option><option value="sg">SG（全員A1・トップクラス10人、初日12Rにドリーム戦）</option></select></label>
+      <label>級 <select id="setsuCls"><option value="TOP">A1★（トップクラス）</option><option>A1</option><option>A2</option><option selected>B1</option><option>B2</option></select>（おまかせ時の強さ）</label>
+      <label>性別 <select id="setsuSex"><option value="m" selected>男子（最低体重52kg）</option><option value="f">女子（最低体重47kg）</option></select> 体重 <input id="setsuWt" type="number" min="44" max="62" step="0.5" value="53" style="width:64px">kg</label>
+      <label>季節 <select id="setsuSeason"><option value="">おまかせ</option><option value="spring">春</option><option value="summer">夏</option><option value="autumn">秋</option><option value="winter">冬</option></select></label>
+      <button class="btn" id="setsuGo">新しい節を始める</button>
+      <button class="btn ghost" id="setsuResume" hidden><span id="setsuResumeTxt">続きから</span></button>
+      <button class="btn ghost" id="setsuNewClose">やめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="setsu" hidden>
+  <div class="card">
+    <h1 style="font-size:22px" id="setsuTitle"></h1>
+    <div class="setsu-me" id="setsuMeLine"></div>
+    <div id="setsuTabs"><button class="pill" data-t="ban">番組・結果</button><button class="pill" data-t="rank">得点率</button><button class="pill" data-t="seibi">整備</button></div>
+    <div class="row" style="margin-top:4px"><button class="btn" id="setsuNext">次のレースへ</button><button class="btn ghost" id="setsuDay">今日の残りをおまかせ</button><button class="btn ghost" id="setsuAll">節の最後までおまかせ</button><button class="btn ghost" id="setsuQuit">中断</button></div>
+    <div id="setsuBody"></div>
+  </div>
+</div>
+
+<div class="overlay" id="waku" hidden>
+  <div class="card" style="max-width:460px">
+    <h1 style="font-size:22px"><small>スタート練習（ピット離れ）</small>枠を選ぶ</h1>
+    <p id="wakuNote">ランプの数字が消えて「ピット離れ」でアクセル。早すぎるとエンスト、遅いと出遅れます（モーターの出足でも差が出ます）。バック側で内の艇より前に出ればコースを奪えますが、内も抵抗してきます。2マークを過ぎてから正対するまでに「引く」を押すとダッシュ。舵は自動、スタートラインを越えたらCPUが引き継ぎます。</p>
+    <div class="wakus" id="wakuBtns"></div>
+    <div class="row"><button class="btn ghost" id="wakuClose">やめる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="slitPhoto" hidden role="dialog" aria-modal="true" aria-labelledby="slitTitle">
+  <div class="card">
+    <h1 id="slitTitle">スリット判定写真</h1>
+    <div class="slit-tools"><label>記録 <select id="slitRace" aria-label="確認するレース"></select></label><button class="btn ghost" id="slitClose">閉じる</button></div>
+    <canvas id="slitCanvas" width="1000" height="700" role="img" aria-label="スタート時の各艇の位置、判定点とST"></canvas>
+    <div class="slit-tools"><button class="btn ghost" id="slitPrev" aria-label="前の記録コマ">◀</button><input id="slitSeek" type="range" min="-1000" max="1500" step="1" value="0" aria-label="スタート合図からの時刻（ミリ秒）"><button class="btn ghost" id="slitNext" aria-label="次の記録コマ">▶</button><output id="slitTime" aria-live="polite">合図 +0.000秒</output></div>
+    <div class="slit-tools"><button class="btn ghost" id="slitLog" hidden>入力ログ</button><button class="btn ghost" id="slitMode" aria-pressed="false">スリットカメラで見る</button><button class="btn" id="slitZero">合図の瞬間</button><button class="btn ghost" id="slitSave">画像を保存</button></div>
+    <p id="slitSummary"></p>
+    <p>ゲーム内の実測位置を記録した俯瞰画像です。記録コマの間は位置を補間します。白い点は現在のd42の判定点（舳先の最先端）で、ST・Fは実際のゲーム判定値です。直近5走を保持します（ページを閉じると消えます）。</p>
+  </div>
+</div>
+
+<div class="overlay" id="logView" hidden role="dialog" aria-modal="true" aria-labelledby="logTitle">
+  <div class="card" style="max-width:900px">
+    <h1 id="logTitle" style="font-size:22px"><small>起こし〜1マーク</small>入力ログ</h1>
+    <div class="row" style="margin-top:4px"><select id="logSel" aria-label="記録" style="font:inherit;background:var(--hud);color:var(--fg);border:1px solid var(--hud-line);border-radius:6px;padding:6px"></select><button class="btn" id="logCopy">コピー</button><button class="btn ghost" id="logClose">閉じる</button><span id="logMsg" style="font-size:12px;color:var(--good)"></span></div>
+    <textarea id="logText" readonly spellcheck="false" style="width:100%;height:min(52vh,420px);margin-top:10px;font:11px/1.45 ui-monospace,monospace;background:#05181f;color:#dcecf3;border:1px solid var(--hud-line);border-radius:8px;padding:8px;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:auto"></textarea>
+    <p style="font-size:12px">0.1秒ごとの記録（タブ区切り。表計算に貼り付けられます）。加速度＝推力−空気抵抗−待機抵抗−引き波抵抗−旋回損失−姿勢抵抗（m/s²）。直近5本を保持（ページを閉じると消えます）。</p>
+  </div>
+</div>
+
+<div class="overlay" id="meas" hidden>
+  <div class="card" style="max-width:520px">
+    <h1 style="font-size:22px"><small>スタート練習・2周</small>計測タイム</h1>
+    <table class="mtab"><thead><tr><th></th><th>1周目</th><th>2周目</th></tr></thead><tbody id="measBody"></tbody></table>
+    <p id="measNote" style="font-size:12px;color:var(--muted)"></p>
+    <div class="row"><button class="btn ghost" id="measSlit" hidden>スリット写真</button><button class="btn" id="measAgain">もう一度</button><button class="btn ghost" id="measClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="taBox" hidden>
+  <div class="card">
+    <h1 style="font-size:22px"><small>タイムアタック（3周）</small>結果</h1>
+    <div class="ta-big"><b id="taTime"></b><span id="taRank" class="ta-rank"></span></div>
+    <p id="taMsg" style="color:var(--fg)"></p>
+    <table class="mtab"><thead><tr><th></th><th>今回</th><th>自己ベスト</th></tr></thead><tbody id="taBody"></tbody></table>
+    <p id="taNote" style="font-size:12px;color:var(--muted)"></p>
+    <div class="row"><button class="btn" id="taAgain">もう一度</button><button class="btn ghost" id="taSlit" hidden>スリット写真</button><button class="btn ghost" id="taClose">閉じる</button></div>
+  </div>
+</div>
+<div class="overlay" id="card" hidden>
+  <div class="card" style="max-width:560px">
+    <h1 style="font-size:22px"><small>出走表</small>6艇の特性</h1>
+    <div class="tablewrap"><table class="race">
+      <thead><tr><th>艇</th><th>級</th><th>進入</th><th>スタート</th><th>戦法</th><th>進入志向</th><th>気性</th><th>出足</th><th>回り足</th><th>伸び</th><th>チルト</th></tr></thead>
+      <tbody id="cardBody"></tbody>
+    </table></div>
+    <p>イン志向の艇は枠より内のコースを取りにいき（前付け）、アウト志向の艇は外へ回ります。スローは助走が短く内の位置を生かし、ダッシュは助走を長く取って速度を乗せてスタートします。2コース・3コースは1マーク手前で、スタートで内より前に出ていれば握り、外がまくりに来ていれば壁になり、それ以外は「勝ちにいく差し」か「着を取る差し」を選びます。まくり艇は1マーク手前で内の艇と並んでいれば、張りついて回る「ツケマイ」に切り替えることがあります（上位級・攻撃的ほど積極的）。気性が攻撃的な艇ほど、ターンで外に並ばれるとダンプ（外へ押し出す）を仕掛け、後ろから迫る艇にも道を譲りにくくなります。モーター・ペラの仕上がりで「出足」と「伸び」に差があり、チルトを上げるほど伸びが出る代わりに出足とターンが甘くなります（CPUは内が−0.5中心、ダッシュ勢は0〜+0.5、まれに大きく跳ねる）。伸びは基本的に外が有利で、スロー勢はスリットを越えてもしばらく加速の途中、助走を取ったダッシュ勢はスリット後に伸びて内を叩きにいけます。スリットまでは真っ直ぐが原則で、内の艇より完全に前に出た（舳先もかかっていない）ダッシュ艇だけがスリット手前から内へ寄せられます。スリットを越えると一気に勝負の舵を切り、絞りは内の艇より完全に前に出てから。並走中（舳先がかかった状態）に相手の方へ舵を切るのは第19条違反の不良航法です。スリットを越えたら絞って内へ寄せるのは自由ですが、それで相手に接触した（進路を邪魔した）とき、または並走中にごく近くで急角度に切り込んだときは不良航法（減点、着順はそのまま）。接触した相手が転覆・落水すると妨害失格です。ターンマークの内側には消波装置があり、それでも内側を通過した艇は6着扱い。ターンマークはかすめる程度ならわずかな減速で済みます。各艇の下の輪は安定度で、限界に近づくと黄、危険ラインを越えると赤く点滅します（越えても必ず転ぶわけではなく、越えた深さと技量で確率が変わります）。点線の輪は勝負に出ている艇。スタートで外の艇が内より前に出ると、内を絞りにいくことがあります（3コースが最も積極的）。絞られた内の艇はたいてい引いて後ろにつき、抵抗することはまれで、抵抗して接触すると転覆の恐れがあります。引き波は近いほど荒く、乗った艇は暴れて接触で転覆しやすくなります（腕で差が出ます）。前の艇の真後ろ（航跡）に入ると伸びが鈍るので、後続は横にずれて並びにいきます。1マークは転覆しやすいので、そこでは基本的に無理をしません。転覆・落水は失格。事故が起きたらその時点の着順で固定され、追い抜き禁止で事故艇の外側を徐行します（右上の「スキップ」で結果へ飛べます）。フライングは返還で、1マークを過ぎたらコースから離脱。先頭が十分に離れているときは無理をせず、競り合いの勝負どころでは級と気性に応じて攻めのターンに出ることがあり、決まるかどうかも級で変わります。スタートは1コースが最も読みやすく、次に4カド、2・3コース、5・6コースの順にタイミングがブレやすく、ブレる艇ほど安全マージンを取って遅めに狙います。外のスタートの難しさはA1ほど影響を受けにくく、級が下がるほど外が苦手になります。直前でフライングになると分かれば放って（レバーを戻して）合わせます。右上の「進入」を「ピット離れ」にすると、ピット離れから進入争いになります（ピットは2マーク裏のホーム側で、内から1号艇。ピットを出たら80〜100m（外の艇ほど長く）まっすぐ全速で加速し、外の艇ほど大きく回ります。そこで舵を切って速度を合わせながら小回り防止ブイ（2マークから20mセンター寄り、実際の位置）の外を回ります。この直線の終わりで内の艇より大きく前に出ていれば、ピット離れで遅れた内の艇を抜きにいき、はっきり前に出てから（8m）内へ切り込んでコースを取ります（後ろを回って入ることはありません。追い返されたら諦めます）。内の艇はそれを見て前に出てブロックすることもあります。その後も内に隙があれば、外の艇がコースを取りにいくことがあります（気性次第。1コースを狙うのはイン志向の艇だけで、深くなりすぎないよう取れるのは1つまで）。そのあと2マークへ向かう間に内より前に出た艇がコースを取り、内は抵抗することも。2マークから正対までに引いた艇はダッシュで外に並び、大きく遅れた艇は回り直しで大外）。大時計はピット離れの合図から動き出し、スタートまで1分40秒（実際の待機行動と同じ）。針が回るのは最後の12秒です。「引く」はピットを出た直後から正対するまで押せます。2マーク手前で引くと2マークを大回りしてダッシュ位置へ、2マークを回った後に引くとスリットに背を向けて後ろへ下がり、回り直してダッシュ位置につきます。ダッシュのコースは引いた順に外から（6・5・4…）決まります。CPUは6号艇が早めに引くことがあり、5号艇がそれに続き、4コースは内がダッシュについて来られないようギリギリまで待って引きます。外が時間に余裕を残して引いたときだけ、3カド（ごくまれに2カド）になります。内のコースを狙う艇は引きません。エンジンは止まらないので、待機中もアクセルを放した艇はゆっくり前に流れ続けます。スタートラインに艇を向けたら（正対したら）もう舵は切れません。なので2マークを回ったら、まず自分のコースの位置まで出て、舳先を外に向けたまま（舵を切って体を起こし、ほとんど進まない状態で）待ち、そこからまっすぐ流せばちょうど起こし位置に着くタイミングで正対します。正対したあとはまっすぐ進むだけ。2マークを早く回りすぎたり、正対後にレバーを握りすぎたりすると取り返せず、深い（助走の短い）起こしになります。レバーを握ると、その場で正対して前に出ます。画面上に「起こし見込み」が出ます。前付けを受けた内の艇は、抵抗する・入れる・引いてダッシュに回るのどれかを選びます。抵抗すると2艇とも舳先を下げずに待機水面を前に出ていくので深くなり、内の艇もつられて深くなります。深くなりすぎると抵抗をやめて入れるか引きます。待機行動違反（減点）：小回り防止ブイから2マークの間で前の艇との間隔が艇2つ分より詰まる「間隔不足」、待機中の接触、大時計の針が回る前にスタートラインを越える。後から正対した艇は、先に正対した外の艇の内へは割り込めません。「固定」のときは枠なり進入です（起こし位置の目安：1コース95〜105m、2コース100〜115m、3コース110〜125m、4コース185〜200m、5・6コース195〜210m。まれに3コースが170m付近まで引く3カドになります）。CPUの判断は標準（d42までの調整）。設定で「コース別作戦 v1（試験中）」に切り替えると、基本作戦から展開を読んで作戦を変えるCPUになります。級・気性はレースごとに入れ替わります。右上の「SG」をオンにすると全艇A1のSGレースになり、赤い印のついた艇はA1の中でもトップクラスです。</p>
+    <div class="row"><button class="btn ghost" id="cardClose">閉じる</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="resBox" hidden style="z-index:6">
+  <div class="card" style="max-width:620px">
+    <h1 style="font-size:22px"><small>レース結果</small><span id="resTitle">レース結果</span></h1>
+    <p id="resInfo" style="color:var(--fg)"></p>
+    <div id="resPhoto" hidden><p id="resPhotoTxt" style="margin:0 0 6px;font-weight:700;color:#ffb02e"></p><canvas id="resPhotoCv" width="560" height="120" style="width:100%;max-width:560px;border-radius:6px;display:block"></canvas></div>
+    <div class="tablewrap"><table class="race res"><thead><tr><th>着</th><th>艇</th><th>選手</th><th>級</th><th>進入</th><th>ST</th><th>タイム</th></tr></thead><tbody id="resBody"></tbody></table></div>
+    <div class="row"><button class="btn" id="resNext">次へ</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="settings" hidden>
+  <div class="card" style="max-width:460px">
+    <h1 style="font-size:22px">設定</h1>
+    <div class="set">
+      <label>操作モード<select id="controlMode"><option value="tilt">1．傾きあり</option><option value="pad">2．傾きなし・姿勢パッドあり</option><option value="wheel">3．姿勢パッド＋右手アクセル</option></select></label>
+      <div id="wheelSettings" hidden><label>スマホ舵の最大角度 <input type="range" id="wheelRange" min="10" max="60" value="30" step="5"><output id="wheelRangeOut">30°</output></label><label><input type="checkbox" id="wheelInvert"> スマホ舵の左右を反転</label></div>
+      <p style="margin:0;font-size:12px" id="postureModeNote">オフ：傾きセンサーで姿勢を操作します。</p>
+      <button class="btn" id="zero">今の持ち方を基準にする</button>
+      <label><input type="checkbox" id="invR"> 左右の傾きを反転</label>
+      <label><input type="checkbox" id="invP"> 前後の傾きを反転</label>
+      <label><input type="checkbox" id="padRT"> コントローラのスロットルを右トリガーにする</label>
+      <label><input type="checkbox" id="sndOn" checked> 音</label>
+      <label>音量 <input type="range" id="sndVol" min="0" max="100" step="5" value="70"><output id="sndVolOut">70</output></label>
+      <div class="row" style="margin-top:0"><label style="flex:1"><input type="checkbox" id="hapOn" checked> 振動（コントローラ／Androidスマホ）</label><button class="btn ghost" id="hapTest">振動テスト</button></div>
+      <label>傾きの幅 <input type="range" id="sens" min="8" max="35" step="1" value="18"><output id="sensOut">18°</output></label>
+      <p style="margin:0">この角度まで傾けると体重移動が最大になります。小さいほど敏感です。</p>
+      <label>デモのCPU基本判断 <select id="demoCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label>
+      <label>自艇のチルト <select id="tiltSel"><option value="-0.5" selected>−0.5（出足・回り足）</option><option value="0">0</option><option value="0.5">+0.5</option><option value="1">+1.0</option><option value="1.5">+1.5</option><option value="2">+2.0</option><option value="3">+3.0（伸び）</option></select></label>
+      <p style="margin:0;font-size:12px">チルトを上げるほど直線の伸びが出て外のコース向き。代わりに出足が鈍り、ターンで流れやすくなります。</p>
+      <label>カメラ <select id="camMode"><option value="follow">追いかけ</option><option value="auto">自動ズーム（PC向け・全艇が入るまで引く）</option></select></label>
+      <label>天候 <select id="wxMode"><option value="auto">いつも通り</option><option value="storm">荒天にする（安定板・2周戦）</option></select></label>
+      <label>実況 <select id="jkMode"><option value="off">オフ</option><option value="std">標準</option><option value="hot">熱血（児島風）</option></select></label>
+      <label>6艇デモの再生速度 <select id="simSpeed"><option value="1">1倍（実時間）</option><option value="1.5" selected>1.5倍</option><option value="2">2倍</option><option value="3">3倍</option></select></label>
+      <div class="row" style="margin-top:0">
+        <button class="btn ghost" id="reset">練習をやり直す</button>
+        <button class="btn ghost" id="close">閉じる</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="labSetup" class="lab-surface" hidden aria-label="挙動検証の条件設定">
+ <div class="lab-head"><div><div class="lab-kicker">HONOR FOR GP / d42 BEHAVIOR LAB</div><h2>第1マークを、読み解く。</h2></div><div class="lab-actions"><button id="labImport">ログから条件を読込</button><button id="labSetupClose">閉じる</button></div></div>
+ <p>2〜6艇の位置・速度・選手特性と、段階ごとの判断を設定。d42の操艇・物理処理で走らせ、判断と操作、艇の動きを記録します。スリット付近から開始し、第1マーク〜第2マークへの準備を検証します。</p>
+ <div class="lab-block lab-grid"><label>CPU基本判断<select id="labCpuMode"><option value="legacy">標準（d42までの調整）</option><option value="course-v1">コース別作戦 v1（試験中）</option></select></label><label>乱数シード<input id="labSeed" type="number" min="0" max="4294967295" step="1" value="42"></label><label>検証時間（秒）<input id="labDuration" type="number" min="5" max="120" step="1" value="30"></label><label>ログの記録間隔<select id="labHz"><option value="20">20 Hz / 0.05秒</option><option value="60">60 Hz / 約0.017秒</option><option value="120">120 Hz / 毎ステップ</option></select></label><label>コーナー手前の開始位置 x（m）<input id="labApproach" type="number" min="40" max="120" value="90"></label></div>
+ <div class="lab-actions"><button id="labPreset">1・4コースの2艇に戻す</button><button id="labAll">6艇すべてを選ぶ</button><button id="labCoursePreset">コース別作戦で6艇テスト</button><button id="labAvoidAll">全艇を接触回避優先に</button></div>
+ <p class="lab-note">使用するコースにチェック。x＝前後位置（＋が1マーク方向）、y＝外への距離。スタート線 x=0、1マーク (150,0)。STは判断に渡す既知の値で、スタート計測は省略します。初期位置・速度はSTと独立です。</p>
+ <div id="labBoats"></div>
+ <p class="lab-note">コース別作戦 v1：1＝先マイ・逃げ、2＝差し、3＝まくり／まくり差し、4＝まくり、5＝まくり差し、6＝差しを基本に、先行差・伸び・艇間の開きで判断します。コース別作戦では、カドは出走艇のうちスロー以外で最も内の艇として自動判定します。まくり差しは外から入り、空いた艇間へ切り込む専用ラインです。6コースもマークの外側を通ってからバック側へ抜けます。戦法名はCPUの意図であり、決まり手の結果判定ではありません。操作の空欄＝CPU判断、数値＝目標入力の指定（d42の反応遅れあり）。舵・傾きは−が左、＋が右。姿勢は−が起こす、＋が伏せる。Rとgapはd42の目標ラインの半径と外端距離（m）です。接触・引き波・事故後の徐行は有効です。「接触回避を優先」は広めの艇間余裕を見て、まくりや数値指定より回避減速・舵・姿勢の回避操作を優先します。ダンプ・従来の強引な絞り・絞りへの抵抗を抑制します。「一艇身先行したら絞る」は併用可能で、回避操作を優先しつつ内へ入ります。衝突判定を消す設定ではなく、接触ゼロは保証しません。</p>
+ <div class="lab-error" id="labError" role="alert"></div>
+ <div class="lab-bottom"><span class="lab-count" id="labCount">2艇を選択</span><div class="lab-actions"><button id="labSetupExport" disabled>前回のログを保存</button><button id="labStart" class="primary">この条件で検証開始</button></div></div>
+ <input id="labFile" type="file" accept=".json,application/json" hidden>
+</section>
+<aside id="labRun" class="lab-surface" hidden aria-label="挙動検証の操作とログ">
+ <div class="lab-kicker">d42 / BEHAVIOR LAB</div><h2>判断と操作の記録</h2>
+ <div class="lab-actions"><button id="labConfigure">条件設定</button><button id="labExit">通常モードへ</button></div>
+ <div class="lab-clock" id="labTime">0.000 s</div><div id="labStatus" aria-live="polite">準備完了</div>
+ <div class="lab-actions"><button id="labPause" class="primary">一時停止</button><button id="labStep">1ステップ</button><button id="labStop">終了</button></div>
+ <div class="lab-grid"><label>再生速度<select id="labRate"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><label>追尾する艇<select id="labFocus"></select></label></div>
+ <div class="lab-grid"><label>視点<select id="labView"><option value="all">全艇を表示</option><option value="follow">選択艇を追尾</option><option value="mark">1マーク全景</option></select></label><label class="lab-guide-label"><input id="labGuide" type="checkbox" checked>航跡・目標点</label></div>
+ <div class="lab-live-row"><div><small>速度 km/h</small><b id="labV">—</b></div><div><small>加減速 m/s²</small><b id="labAccel">—</b></div><div><small>旋回 °/s</small><b id="labYaw">—</b></div></div>
+ <div id="labDetail"></div><canvas id="labChart" width="640" height="260" aria-label="直近10秒の速度とアクセル"></canvas><div class="lab-legend">直近10秒 / <span>速度 0〜100 km/h</span>・<em>アクセル 0〜100%</em></div>
+ <p class="lab-note">判断の変化・実際の操作</p><ol id="labEvents"></ol>
+ <div class="lab-actions"><button id="labExport" class="primary">AI用JSONログを保存</button><button id="labRestart">同条件で再実行</button></div>
+ <p class="lab-note">保存したJSONをAIへ添付してください。条件・段階・判断・操作・運動データと分析依頼文を含みます。途中でも保存できます。再実行すると今回の記録は置き換わります。</p>
+</aside>
+
+<script src="js/core.js"></script>
+<script src="js/data.js"></script>
+<script src="js/input.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/race.js"></script>
+<script src="js/view.js"></script>
+<script src="js/lab.js"></script>
+<script src="js/setsu.js"></script>
+<script src="js/ta.js"></script>
+<script src="js/trial.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
