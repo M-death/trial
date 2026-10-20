@@ -2,7 +2,7 @@
    The trial is the main game's files plus this one: it hides the modes that aren't in the trial and makes
    「スタート」 go straight into タイムアタック. To update the trial, copy the main game's js/ and index.html over
    and keep this file and its <script> line (and the 体験版 title). */
-const TRIAL = { ver: 't10', base: 'd139' };
+const TRIAL = { ver: 't11', base: 'd140' };
 if ($('verTag')) $('verTag').textContent = `${TRIAL.ver}（${GAME_VER}）`;
 const TRIAL_HIDE = ['labLaunch', 'labLaunchStart', 'entryBtn', 'sgBtn', 'logBtn', 'pm6', 'pmRace', 'pmSetsu', 'pmReplay'];
 for (const id of TRIAL_HIDE) {
