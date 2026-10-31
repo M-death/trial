@@ -2,7 +2,7 @@
    The trial is the main game's files plus this one. d198 (まえ): the public trial has two modes only — タイムアタック and
    6艇レース — and a short settings screen. To update the trial, copy the main game's js/ and index.html over and keep this
    file and its <script> line (and the 体験版 title). */
-const TRIAL = { ver: 't75', base: 'd204' };
+const TRIAL = { ver: 't77', base: 'd206' };
 if ($('verTag')) $('verTag').textContent = `${TRIAL.ver}（${GAME_VER}）`;
 const trialHide = el => { if (!el) return; el.hidden = true; el.style.display = 'none'; };
 // modes and tools that aren't in the trial
