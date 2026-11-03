@@ -2,12 +2,12 @@
    The trial is the main game's files plus this one. d198 (まえ): the public trial has two modes only — タイムアタック and
    6艇レース — and a short settings screen. To update the trial, copy the main game's js/ and index.html over and keep this
    file and its <script> line (and the 体験版 title). */
-const TRIAL = { ver: 't93', base: 'd222' };
+const TRIAL = { ver: 't97', base: 'd226' };
 if ($('verTag')) $('verTag').textContent = `${TRIAL.ver}（${GAME_VER}）`;
 const trialHide = el => { if (!el) return; el.hidden = true; el.style.display = 'none'; };
 // modes and tools that aren't in the trial
 for (const id of ['labLaunch', 'labLaunchStart', 'goDemo', 'entryBtn', 'sgBtn', 'logBtn', 'slitBtn', 'vlHold',
-                  'pm6', 'pmRace', 'pmTALog', 'pmTenji', 'pmClock', 'pmSetsu', 'pmReplay', 'taLog', 'taSlit']) trialHide($(id));
+                  'pm6', 'pmRace', 'pmTALog', 'rankReset', 'pmTenji', 'pmClock', 'pmSetsu', 'pmReplay', 'taLog', 'taSlit']) trialHide($(id));
 // start screen: タイムアタック / 6艇レース
 $('go').textContent = 'タイムアタック';
 $('goRace').className = 'btn';
