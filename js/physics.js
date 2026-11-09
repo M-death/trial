@@ -40,9 +40,11 @@ const PLANE = { low: 0.4, v: 23 };
 const thrustK = v => 1 - PLANE.low * clamp(1 - v / PLANE.v, 0, 1);
 // スタート（起こし→スリット）だけは加速が鈍い: 助走100mでスリット時に全速の85%前後、200mで95%前後。
 // 周回中のターン立ち上がりには掛からない（preStart は大時計の針が回っている間、スタートラインを越えるまで）
-const START_ACC = { cut: 0.5, v: 22.5, fade: 40, slowK: 1.19, slowFade: 51 };   // slowK: the スロー start's short run-up digs in harder (it reaches the slit slower and is still climbing)   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
+const START_ACC = { cut: 0.5, v: 22.5, fade: 40, slowK: 1, slowFade: 40 };   // d240 (まえ: 起こしからの補正を無しに — インだからアウトだからの補正はなし、立ち上がりは純粋にモーター・ペラ): slowK 1.19→1, slowFade 20→40 (= dash), startWindK off
+//   // d239 (まえ: 1コースが弱い — トップスタートでも負ける): slowFade 51→20 m, the スロー's dull pull wears off sooner past the slit   // slowK: the スロー start's short run-up digs in harder (it reaches the slit slower and is still climbing)   // fade: m past the slit over which the start's dull pull wears off (the dash boats' 伸び tells there)
 // 向かい風 holds the スロー's short run-up back (the dash gets its chance); 追い風 helps it along
-const startWindK = b => b && b.slowStart && waterEnv ? 1 + clamp(-waterEnv.wx, 0, 8) * 0.03 - clamp(waterEnv.wx, 0, 8) * 0.015 : 1;
+const START_WIND_SLOW = false;   // d240: the スロー-only wind cut is off (the wind still pushes every boat through ENV.windAir)
+const startWindK = b => START_WIND_SLOW && b && b.slowStart && waterEnv ? 1 + clamp(-waterEnv.wx, 0, 8) * 0.03 - clamp(waterEnv.wx, 0, 8) * 0.015 : 1;
 const startK = (v, pre, b) => pre ? 1 - Math.min(0.9, START_ACC.cut * (b && b.slowStart ? START_ACC.slowK : 1) * startWindK(b)) * (+pre) * clamp(1 - v / START_ACC.v, 0, 1) : 1;
 // after the slit the slow boats are still climbing: the dull pull fades out over the first fade m of the straight
 const preStartAfter = (bowX, slow) => clamp(1 - bowX / (slow ? START_ACC.slowFade : START_ACC.fade), 0, 1);
@@ -67,24 +69,31 @@ const raceFadeK = b => (1 - CHOP.thr * chopNow()) * (1 - HEAT.thr * fadeScale() 
 // 回り足 (quick races): extra pull and bite while the boat is turning; 1 = average motor
 const MAWARI = { yaw: 0.35, thr: 2.5, grip: 1.2 };
 const mawariK = (b, k) => b && b.mawari ? 1 + (b.mawari - 1) * k * clamp(Math.abs(b.yaw) / MAWARI.yaw, 0, 1) : 1;
-const TILT = { rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.05, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
+const TILT = { up: { nobi: 0.036, low: 0.09, mid: 0.02 }, rough: 1.5, hop: 0.12, nobi: 0.025, low: 0.07, mid: 0.015, planeV: [10.3, 12.5], deashi: 0.012, grip: 0.065, steps: [-0.5, 0, 0.5, 1, 1.5, 2, 3] };   // d191 (まえ: alone on clean water tilt up should pay): A1 solo 3 laps tilt 0/1/2/3 = 107.5/107.2/106.9/106.4 s, top 79.8/81.3/82.6/83.8 km/h; in a race the wake/chop penalty (rough) eats it. d189: nobi .006→.025, hop .25→.12
+// d230 (まえ: モーター・ペラ・チルトの効果を上げて。伸び無印＝タイムアタックと同じ、○・◎で上): the 伸び a motor (and its ペラ)
+// has is felt MOTOR_FX.nobi times as much at the top end. An average motor (1.00) is untouched, so タイムアタック is the same.
+const MOTOR_FX = { nobi: 1.6 };
+const nobiFx = b => 1 + (b.nobi - 1) * MOTOR_FX.nobi;
 function motorK(b, v = b.v) {
   if (!b || b.nobi == null) return 1;
   let tk = tiltPull(b.tilt || 0, v);
   if (tk > 0 && b.tiltFit != null) tk *= b.tiltFit;   // d203: a rider who can't set her motor up gets the tilt's pull only when it happens to suit it (羽美)
-  if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return (b.deashi * (1 - w) + b.nobi * w + tk) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
+  if (b.mMid == null) { const w = clamp((v - 14) / 8, 0, 1); return (b.deashi * (1 - w) + nobiFx(b) * w + tk) * (b.powerK || 1) * mawariK(b, MAWARI.thr); }
   // 3つの速度域: 出足 (low), 回り足・行き足 (mid), 伸び (top), blended by speed; temperature hits the low end harder
   const wTop = clamp((v - 16) / 6, 0, 1), wLow = clamp((13 - v) / 6, 0, 1), wMid = Math.max(0, 1 - wTop - wLow);
-  const lo = b.deashi + (b.tempLow || 0), top = b.nobi + (b.tempTop || 0), mid = b.mMid + (b.tempLow || 0) * 0.5 + (b.tempTop || 0) * 0.5;
+  const lo = b.deashi + (b.tempLow || 0), top = nobiFx(b) + (b.tempTop || 0), mid = b.mMid + (b.tempLow || 0) * 0.5 + (b.tempTop || 0) * 0.5;
   return (lo * wLow + mid * wMid + top * wTop + tk) * (b.powerK || 1);
 }
 // d193 (まえ): tilt by speed band. Below planing (≈34–42 km/h) a tilted-up prop pushes upward and the bow rides high —
 // very heavy (pit departure, 起こし, and a boat knocked below 40 by a wake); once it planes it pulls far harder through
 // the middle and keeps going at the top. Tilt down (−0.5) the other way round, a little.
+// d230 (まえ: チルトの影響をしっかりと): tilt up pulls harder at the top and is heavier below planing (TILT.up); tilt down
+// (−0.5, where タイムアタック runs) keeps the old numbers
 function tiltPull(t, v) {
   if (!t) return 0;
   const u = clamp((v - TILT.planeV[0]) / (TILT.planeV[1] - TILT.planeV[0]), 0, 1), s = u * u * (3 - 2 * u), wTop = clamp((v - 16) / 6, 0, 1);
-  return t * (-TILT.low * (1 - s) + s * (TILT.mid * (1 - wTop) + TILT.nobi * wTop));
+  const K = t > 0 ? TILT.up : TILT;
+  return t * (-K.low * (1 - s) + s * (K.mid * (1 - wTop) + K.nobi * wTop));
 }
 // その日の水面 (節間): wind (m/s, a vector: +x = blowing from 2M toward 1M = 追い風 on the home straight), tide current, wave height (cm)
 let waterEnv = null;
@@ -287,7 +296,7 @@ function boatPhysics(b, inp, dt) {
   const monkey = ins * (0.4 + 0.6 * pose) * (1 - 0.5 * downG);
   let grip = GRIP_BASE * (1 + 0.15 * pose) * (1 + TURN.lean * ins * (1 + TURN.upBoost * pose - TURN.downCut * downG)) * (1 + 0.5 * Math.min(0, inside))
     * (1 - TURN.thrWide * t * (1 - monkey)) * (1 + TURN.dropGrip * (1 - t))
-    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.bodyGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil) * (1 - TRIM.grip * clamp(b.trimPop || 0, 0, 1));
+    * (1 - 0.4 * b.porp) * (1 - (0.12 * wk + 0.28 * bump) * WAKE.grip) * (b.gripBoost || 1) * (b.gripSkill || 1) * tiltGrip(b) * (b.hullGrip || 1) * (b.bodyGrip || 1) * (b.weightGrip || 1) * mawariK(b, MAWARI.grip) * (1 - CHOP.grip * chopNow()) * (b.roughGrip || 1) * (1 - air * BOUNCE.airGrip) * (DRIFT.on ? 1 : 1 - (1 - WILLIE.grip) * wil) * (1 - TRIM.grip * clamp(b.trimPop || 0, 0, 1));
   grip = Math.max(2, grip);
 
   // 艇の傾き: where the hull is rolled to, and how much of it is to the inside of the turn it is making
@@ -404,13 +413,20 @@ function boatPhysics(b, inp, dt) {
   return ev;
 }
 
+// d237 (まえ: 住之江で6号艇が壁に張りついて止まった): the wall takes away only the part of the speed going into it.
+// The first touch costs more the straighter the boat hits (a glancing touch little); while it stays against the wall it
+// scrubs a little more each step, but a boat running along it keeps going (before: half its speed every physics step).
+const WALL_HIT = { first: 0.6, rub: 0.015 };
 function wallsFor(b) {
-  let hit = false;
-  if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; }
-  if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; }
-  if (b.y < COURSE.yMin + 2) { b.y = COURSE.yMin + 2; hit = true; }
-  if (b.y > COURSE.yMax - 2) { b.y = COURSE.yMax - 2; hit = true; }
-  if (hit) { b.v *= 0.5; b.vl = 0; }
+  let hit = false, into = 0;
+  const cx = Math.cos(b.a), sy = Math.sin(b.a);
+  if (b.x < COURSE.xMin + 2) { b.x = COURSE.xMin + 2; hit = true; into = Math.max(into, -cx); }
+  if (b.x > COURSE.xMax - 2) { b.x = COURSE.xMax - 2; hit = true; into = Math.max(into, cx); }
+  const yS = standY(b.x) - 2, yB = backY(b.x) + 2;   // d235: the venue's banks (they lean)
+  if (b.y < yB) { b.y = yB; hit = true; into = Math.max(into, -sy); }
+  if (b.y > yS) { b.y = yS; hit = true; into = Math.max(into, sy); }
+  if (hit) { b.v *= 1 - (b.onWall ? WALL_HIT.rub : WALL_HIT.first) * clamp(into, 0.05, 1); b.vl = 0; }
+  b.onWall = hit;
   return hit;
 }
 
@@ -510,7 +526,7 @@ function boatFx(b, arr, dt) {
     b.wakeAcc = (b.wakeAcc || 0) + dt;
     if (b.wakeAcc > 0.04) { b.wakeAcc = 0; arr.push({ x: b.x - fx * 2.1, y: b.y - fy * 2.1, a: b.a, t: time, v: b.v, s: wakeStrength(b) }); }
   }
-  while (arr.length && time - arr[0].t > WAKE.life * WAKE_TURN.lifeK + 0.2) arr.shift();
+  while (arr.length && time - arr[0].t > WAKE.life * WAKE_TURN.lifeK * (typeof wakeLifeMax === 'function' ? wakeLifeMax() : 1) + 0.2) arr.shift();
   if ((b.wakeBump || 0) > 0.3 && b.v > 8 && simRandom() < 0.5) {
     const side = simRandom() < 0.5 ? -1 : 1;
     spray.push({ x: b.x + fx * 1.6 + rx * side * 0.7, y: b.y + fy * 1.6 + ry * side * 0.7, vx: rx * side * 3 + fx * 2, vy: ry * side * 3 + fy * 2, t: time, life: 0.45 });
@@ -638,7 +654,7 @@ function cutinCheck() {
   if (rem > fleet.cutinAt) return;
   fleet.cutinDone = true;
   const b = pr.b; if (Math.cos(b.a) < 0.9) return;   // not squared up to the line yet
-  const pred = timeToLine(Math.max(0, -boatBow(b).x), b.v, 1, true, b) - rem;
+  const pred = timeToLine(Math.max(0, toSlit(boatBow(b))), b.v, 1, true, b) - rem;
   const form = playerForm();
   const bias = form < 50 ? -(50 - form) * 0.0012 : form > 85 ? (form - 85) * 0.003 : 0;   // 弱気 sees it early, 浮つき sees it safe
   const n = gauss() * (0.015 + (100 - form) * 0.0004);

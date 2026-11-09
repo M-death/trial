@@ -5,7 +5,8 @@
    as a ghost boat. */
 // d148–d152: the turns (and the exits) got wider (GRIP_BASE), so the old bests were reset — a new key; the old 'honorGP.ta' is left unread
 // d157: the turns slide now (ドリフト) — the old bests were reset again (d158: more slide and the hull's bank; d159: deep bank pays; d161: less fade in タイムアタック — reset each time)
-const TA = { laps: 3, key: 'honorGP.ta.d225', ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
+// d236 (まえ: 住之江は別で集計): the key carries the venue — 練習コース keeps 'honorGP.ta.d225' (its records stay), 住之江 is 'honorGP.ta.d225.suminoe'
+const TA = { laps: 3, keyBase: 'honorGP.ta.d225', key: 'honorGP.ta.d225' + VENUE.taSuffix, ghostDt: 0.1, failWait: 1.8, logKey: 'hfgp-ta-logs', logKeep: 10 };
 // 級: the slowest time (s) that still earns it. CPU 1艇 on calm water, average motor (d130, median):
 // A1★ 1'47"7  A1 1'48"6  A2 1'49"6  B1 1'53"9  B2 1'59"6. d132: まえ set the bands — 記念クラス is beyond the CPU's best.
 // d136: エクストラ (まえ) — GP覇者 and レジェンド sit above 記念クラス
@@ -23,7 +24,7 @@ const ta = { on: false, zero: 0, lastAt: 0, laps: [], st: null, path: [], nextPt
 let taBest = null;
 // d218 端末内ランキング (まえ): the device's 10 best タイムアタック runs, every player together (one name can hold several places).
 // Kept with the TA bands' version (TA.key) so a reset of the records resets it too. The first time, the players' saved bests seed it.
-const TA_RANK = { key: TA.key + '.rank', keep: 10 };
+const TA_RANK = { get key() { return TA.key + '.rank'; }, keep: 10 };
 function taRankLoad() {
   let a = null;
   try { a = JSON.parse(localStorage.getItem(TA_RANK.key) || 'null'); } catch (e) {}
@@ -69,7 +70,7 @@ function beginTA() {
   soloKind = 'ta'; waterEnv = null;
   Object.assign(ta, { on: true, zero: SS.t0 + CLOCK, lastAt: SS.t0 + CLOCK, laps: [], st: null, path: [], nextPt: SS.t0, done: false, log: [], ev: [], corners: [], cur: null, cSide: -1 });
   if (VR) VR.begin('ta');
-  toast('タイムアタック', `${playerName()}　大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
+  toast(`タイムアタック（${VENUE.name}）`, `${playerName()}　大時計スタートから${TA.laps}周　${taBest ? '自己ベスト ' + fmtRT(taBest.t) : '走ったタイムで級を判定'}`, 'info');
 }
 // every physics step of the solo boat
 function taStep() {
@@ -176,19 +177,20 @@ function taShow(run, why, ref = taBest, isBest = false) {
   row('タイム', run ? fmtRT(run.t) : '—', ref ? fmtRT(ref.t) : '—');
   taMeasTable(run ? run.meas : taMeasNow(), ref && ref.meas);
   $('taGaps').textContent = ta.corners.length ? 'マークとの間隔（艇体の端〜ブイ）　' + taCornersJa(ta.corners) : '';
-  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + TA_MEAS_NOTE;
+  $('taNote').textContent = '級の目安（3周）：' + TA_RANKS.filter(r => !TA_EXTRA.includes(r[0])).slice(0, -1).map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '／それより遅いとルーキー。エクストラ：' + TA_RANKS.filter(r => TA_EXTRA.includes(r[0])).reverse().map(r => `${r[0]} ${fmtRT(r[1])}`).join('／') + '。タイムは針が0を指してからゴールまで。' + taMeasNote();
   $('taSlit').hidden = !(practiceSlit && practiceSlit.archived);
   if ($('taVidMsg')) { $('taVidMsg').textContent = ''; $('taVidMsg').hidden = true; }
   if (typeof vlUi === 'function') vlUi();
   paused = true; $('taBox').hidden = false;
 }
 // 区間タイム (展示・直線・まわり足・一周): the same gates as the practice 展示航走 (input.js GATES), every lap
-const TA_MEAS_KEYS = ['tenji', 'choku', 'mawari', 'isshu'];
-const TA_MEAS_NOTE = '　区間：展示＝バックのスタートライン延長から2マークまで150m／直線＝1マークからスタートライン延長まで120m／まわり足＝1マーク手前22mから出口23mまで／一周＝バックのスタートライン延長から次の周の同じ所まで（2周目・3周目の欄）。緑はその区間の今回いちばん速い周。';
-const taMeasNow = () => { const o = {}; for (const k of TA_MEAS_KEYS) o[k] = (meas.t[k] || []).map(v => v == null ? null : +v.toFixed(3)); return o; };
+const TA_MEAS_ALL = ['tenji', 'choku', 'mawari', 'isshu'];   // what is recorded (a section the venue doesn't measure stays empty)
+const taMeasShown = () => [...measKeys(), 'isshu'];             // d254: the venue's sections only
+const taMeasNote = () => '　区間：' + MEAS_NOTE + '（一周は2周目・3周目の欄）。緑はその区間の今回いちばん速い周。';
+const taMeasNow = () => { const o = {}; for (const k of TA_MEAS_ALL) o[k] = (meas.t[k] || []).map(v => v == null ? null : +v.toFixed(3)); return o; };
 // 一周 is measured back straight to back straight, so its n-th value ends in lap n+1
 const taMeasLaps = (m, k) => { const a = (m && m[k]) || []; return k === 'isshu' ? [null, ...a] : a; };
-const taMeasLog = m => TA_MEAS_KEYS.map(k => `${k}=` + Array.from({ length: TA.laps }, (_, i) => { const v = taMeasLaps(m, k)[i]; return v == null ? '-' : v.toFixed(2); }).join('/')).join(' ');
+const taMeasLog = m => taMeasShown().map(k => `${k}=` + Array.from({ length: TA.laps }, (_, i) => { const v = taMeasLaps(m, k)[i]; return v == null ? '-' : v.toFixed(2); }).join('/')).join(' ');
 function taMeasTable(m, ref) {
   let tab = $('taMeas');
   if (!tab) {
@@ -198,7 +200,7 @@ function taMeasTable(m, ref) {
   tab.textContent = '';
   const tr = cells => { const r = document.createElement('tr'); cells.forEach(([v, cls, th]) => { const c = document.createElement(th ? 'th' : 'td'); c.textContent = v; if (cls) c.style.color = 'var(--good)'; r.appendChild(c); }); tab.appendChild(r); };
   tr([['区間', '', 1], ...Array.from({ length: TA.laps }, (_, i) => [`${i + 1}周`, '', 1]), ['自己ベスト時', '', 1]]);
-  for (const k of TA_MEAS_KEYS) {
+  for (const k of taMeasShown()) {
     const a = taMeasLaps(m, k), vals = a.filter(v => v != null), lo = vals.length > 1 ? Math.min(...vals) : null;
     const r = taMeasLaps(ref, k).filter(v => v != null);
     tr([[MEAS_JA[k].replace('タイム', '')], ...Array.from({ length: TA.laps }, (_, i) => [a[i] == null ? '—' : a[i].toFixed(2), a[i] != null && a[i] === lo ? 'good' : '']), [r.length ? Math.min(...r).toFixed(2) : '—']]);
@@ -263,7 +265,10 @@ function taDrawOne(src, sty, alpha) {
 const TA_GHOST = { format: 'hfgp-ghost', version: 1, rivalKey: 'honorGP.taRival', maxPts: 4000 };
 const RIVAL_STYLE = { hull: '#ffb3d9', num: '#3a0a24', label: 'R', helmet: '#ffb3d9' };
 let taRival = null;
-try { taRival = taGhostCheck(JSON.parse(localStorage.getItem(TA_GHOST.rivalKey) || 'null')); } catch (e) { taRival = null; }
+const taRivalLoad = () => { try { taRival = taGhostCheck(JSON.parse(localStorage.getItem(TA_GHOST.rivalKey) || 'null')); } catch (e) { taRival = null; } };
+taRivalLoad();
+// d236: another venue = another table — its own bests, device ranking and rival ghost (a ghost from the other venue doesn't load)
+venueHooks.push(() => { TA.key = TA.keyBase + VENUE.taSuffix; taReload(); taRivalLoad(); });
 function taGhostFile(src) {
   return { format: TA_GHOST.format, version: TA_GHOST.version, game: GAME_VER, rules: TA.key, laps: TA.laps, dt: TA.ghostDt,
     name: playerName(), t: src.t, lapTimes: src.laps, st: src.st, rank: src.rank || taRank(src.t), at: src.at || Date.now(), g0: src.g0, g: src.g };

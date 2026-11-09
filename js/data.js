@@ -44,7 +44,7 @@ function skillLerp(v, get) {   // value v → interpolate get(className) between
 const DRV = name => DRIVERS.find(d => d.name === name);
 // ---- ネームドレーサー (d203, まえ): a named rider can be put in a 枠 of the 6艇レース (one of each per race).
 // prof = the class table it drives by, plus its own ways (race.js / physics.js read the flags):
-//   umi — 瀬戸内羽美 (A2, 岡山・児島): pulls to 6コース from any 枠 but the 1 (and from the 1 at any hint of a 前付け);
+//   umi — 瀬戸内羽美 (A2, 岡山): pulls to 6コース from any 枠 but the 1 (and from the 1 at any hint of a 前付け);
 //   記念-level starts; A2 turns, but takes a clear mark flat out and wide like a 記念 rider (round the outside of a crowd
 //   rather than into it); tilt 3.0 always — turns on it without sliding out, still hops on wake; hard to capsize;
 //   all but never lets go of the lever, never gives way; leaves her motor as drawn (a bad one stays bad).
@@ -53,7 +53,7 @@ const NAMED = [
     prof: { ...DRIVERS[1], kinen: true, named: 'umi', label: 'A2', stCls: { shift: -0.06, sd: 0.015, dent: 0.01 }, flyRisk: 0.004,
             wideOut: true, kinenGap: 3, sweep: { from: 30, late: 8, gap: 10, mkR: 12, mkK: 0.6, svMin: 0.3, svEnd: 0, lyMax: 44, wakeDx: [3, 25], wakeDy: [-25, -3], wakeA: 0.25, wakeDx2: 99, leanFrom: 0.4, leanK: 1.6, crouchFrom: 0.5, grid: [0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1], wall: 8, slack: 3, minLy: 15, pathEase: { sIn: -0.5, T: 1.2, sv: 0.25, dv: 1.5, hold: 0.3 } }, tataki: { fromX: 5, endX: 35, minLy: 22, clear: 3, gap: 5, ks: 0.08, ka: 2, kS: 0.4, sMax: 0.12 },
                  softGo: { lead: 1.2, thr: 0.55, hold: 0.4, ahead: 2, calm: 4, roughSd: 0.012, stAdj: 0.045 },
-                 noLift: 0.9, tilt: 3.0, tiltTurn: 1, storm: { st: 0.03, fly: 0 }, hazMul: 0.3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
+                 noLift: 0.9, tilt: 3.0, tiltTurn: 1, storm: { st: 0.03, fly: 0 }, hazMul: 0.3, wakeAvoid: 3, trait: { pushMul: 2, care: 0.45, resistP: 0.9, shobuMul: 0.4, stSdMul: 0.6 },
             slowTrait: { stShift: 0.05, stSdMul: 1.6, shobuMul: 0 } },   // in the 1コース (slow) her start loses its edge — the 1枠 takes away what makes her good
     temper: 'aggr', out: true, motorLowK: 2 },
 ];
@@ -93,6 +93,18 @@ const VENUES = {
     short: { wave: 12, wind: 9 },                                        // 周回短縮 (3周→2周) when it is rougher still
     temp: { off: 0, swing: 4, jitter: 3 },                               // ℃ against the season, the day's swing, day to day
     start: { hour: 10 + 40 / 60, per: 0.5 } },                           // R1 at 10:40, then every 30 min
+  /* d238 住之江 (まえ, boat-log.com の住之江ページ): 淡水 (工業用水＋雨水) で硬い水、浮力が少なく体重が出足に効く。潮なし。
+     穏やかな水面が多く 5m 以上は約 5%。冬は北からの追い風。後半のレースは風が止みがち。
+     2M: コンクリ護岸で引き波が残り、ピット離れ・スタートの引き波がぶつかって複雑な波 → rough (the zone around 2M) */
+  suminoe: { name: 'なにわ競艇場', water: '淡水',
+    tide: { amp: 0, flow: 0 },
+    wind: { strongP: 0.06, base: [0, 2.5], strong: [4, 7], stormP: 0.02, storm: [8, 10], gust: [0.8, 1.2], dirW: [1, 1, 1, 1], dirWS: { winter: [5, 1, 1, 1] }, keepP: 0.4, lateR: 9, lateK: 0.7 },
+    rain: { storm: 0.8, strong: 0.25, calm: 0.08 },
+    wave: { 追い風: 0.8, 向かい風: 1.6, 横風: 1.1, highTide: 0 },
+    stab: { wave: 5, wind: 6 }, short: { wave: 12, wind: 9 },
+    temp: { off: 0, swing: 4, jitter: 3 }, start: { hour: 10 + 40 / 60, per: 0.5 },
+    weightK: 1.3,                                                        // 淡水: 体重の差が出足に 1.3 倍効く
+    rough: { x: -150, y: 0, r: 75, wave: 5, tail: 0.6, grip: 0.04, wakeLife: 1.9, wakeFade: 0.5, wakeHit: 1.35 } },   // 2M のまわり (r m で 0 まで): 波 cm + 追い風 1m ごとに tail cm, 旋回グリップ低下, 引き波の寿命×・減衰の指数×・強さ× (d253 まえ: 2Mはもっと難所 — 引き波が残りやすく効きも大きい)
 };
 const venueOf = key => VENUES[key] || VENUES.standard;
 
@@ -104,7 +116,7 @@ const SETSU = {
   clsSG: { TOP: 10, A1: 38 },
   courseW: [0.56, 0.14, 0.12, 0.11, 0.06, 0.04], skillK: 1.25, motorK: 17,
   fly: { TOP: 0.0015, A1: 0.002, A2: 0.003, B1: 0.004, B2: 0.006 }, acc: 0.004, omakase: -0.45,
-  props: { deashi: { ja: '出足型', low: 6, mid: 2, top: -5 }, bal: { ja: '前の形のまま', low: 0, mid: 0, top: 0 }, nobi: { ja: '伸び型', low: -5, mid: 0, top: 6 } },
+  props: { deashi: { ja: '出足型', low: 15, mid: 5, top: -12 }, bal: { ja: '前の形のまま', low: 0, mid: 0, top: 0 }, nobi: { ja: '伸び型', low: -12, mid: 0, top: 15 } },   // d230 (まえ: ペラの効果を上げて): ×2.5
   tilts: [-0.5, 0, 0.5, 1, 1.5, 2, 3],
   key: 'hfgp-setsu-v1',
   minWt: { m: 52, f: 47 },
